@@ -1,0 +1,62 @@
+p2 => Nombre d'objet graphique à calculer : 2
+p1 => Nombre d'objet graphique à calculer : 3
+============
+p1 objet 4 iteration 0: fonctions applique 1
+p1 objet 4 iteration 1: fonctions applique 2
+p1 objet 4 iteration 2: fonctions applique 2
+============
+============
+p1 objet 5 iteration 0: fonctions applique 2
+p1 objet 5 iteration 1: fonctions applique 1
+p1 objet 5 iteration 2: fonctions applique 1
+============
+============
+p1 objet 6 iteration 0: fonctions applique 2
+p1 objet 6 iteration 1: fonctions applique 1
+p1 objet 6 iteration 2: fonctions applique 2
+============
+============
+##############
+p1 result[0] a(0.000000,0.000000) b(1.000000,0.000000)
+p1 result[1] a(0.000000,0.000000) b(1.000000,0.000000)
+p1 result[2] a(0.000000,0.000000) b(1.000000,0.000000)
+##############
+p2 objet 7 iteration 0: fonctions applique 2
+p2 objet 7 iteration 1: fonctions applique 2
+p2 objet 7 iteration 2: fonctions applique 1
+============
+============
+p2 objet 8 iteration 0: fonctions applique 2
+p2 objet 8 iteration 1: fonctions applique 2
+p2 objet 8 iteration 2: fonctions applique 2
+============
+##############
+p2 result[0] a(0.000000,0.000000) b(1.000000,0.000000)
+p2 result[1] a(0.000000,0.000000) b(1.000000,0.000000)
+##############
+Nombre d'objets graphique à calculer : 8
+Reste à repartir : 2
+a(0.000000,0.000000) b(1.000000,0.000000)
+f0(a:0.500000 ,b:-0.500000, c:0.500000, d:0.500000, e:0.000000, f:0.000000
+f1(a:0.500000 ,b:0.500000, c:-0.500000, d:0.500000, e:0.000000, f:0.000000
+p0 => Nombre d'objet graphique à calculer : 3
+============
+p0 objet 1 iteration 0: fonctions applique 1
+p0 objet 1 iteration 1: fonctions applique 1
+p0 objet 1 iteration 2: fonctions applique 1
+============
+============
+p0 objet 2 iteration 0: fonctions applique 1
+p0 objet 2 iteration 1: fonctions applique 1
+p0 objet 2 iteration 2: fonctions applique 2
+============
+============
+p0 objet 3 iteration 0: fonctions applique 1
+p0 objet 3 iteration 1: fonctions applique 2
+p0 objet 3 iteration 2: fonctions applique 1
+============
+##############
+p0 result[0] a(0.000000,0.000000) b(1.000000,0.000000)
+p0 result[1] a(0.000000,0.000000) b(1.000000,0.000000)
+p0 result[2] a(0.000000,0.000000) b(1.000000,0.000000)
+##############

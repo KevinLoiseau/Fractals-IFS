@@ -1,0 +1,31 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include "../header/utils.h"
+#include "../header/geometry.h"
+
+double (*w)[6] = (double [][6]) {{0.5, -0.5, 0.5, 0.5, 0.0, 0.0}, {0.5, 0.5, -0.5, 0.5, 0.0, 0.0}}; //Levy Dragon 
+/*double (*w)[6] = (double [][6]) {{0.382, 0, 0, 0.385, 0.3072, 0.619},
+				 {0.382, 0, 0, 0.385, 0.6033, 0.4044},
+				 {0.382, 0, 0, 0.385, 0.0139, 0.4044},
+				 {0.382, 0, 0, 0.385, 0.1253, 0.0595},
+				 {0.382, 0, 0, 0.385, 0.492, 0.0595}}; //Crystal*/
+/*double (*w)[6] = (double [][6]) {{0, -0.5, 0.5, 0, 0.5, 0},
+				 {0, 0.5, -0.5, 0, 0.5, 0.5},
+				 {0.5, 0, 0, 0.5, 0.25, 0.5}}; //Twin Christmas tree */
+
+int power(int x, int y) {
+	int result = 1;
+	int i;
+	for(i = 0 ; i<y ; i++) {
+		result*= x;
+	}	
+	return result;
+}
+
+int min(int a, int b) {
+	if (a < b) {
+		return a;
+	} else {
+		return b;
+	}
+}
