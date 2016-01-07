@@ -6,10 +6,9 @@ typedef struct Point {
 } point;
 
 typedef struct Segment {
-	point* a;
-	point* b;
+	point a;
+	point b;
 } segment;
 
-segment* createSegment(double xa, double xb, double ya, double yb);
-point* createPoint(double x, double y);
+segment createSegment(double xa, double xb, double ya, double yb);
 #endif

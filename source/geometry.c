@@ -4,18 +4,12 @@
 #define Malloc(type) (type *) malloc(sizeof(type))
 #define MallocTab(type,size) (type *) malloc(sizeof(type)*size)
 
-segment* createSegment(double xa, double xb, double ya, double yb) {
+segment createSegment(double xa, double xb, double ya, double yb) {
 	segment* seg;
 	seg = Malloc(segment);
-	seg->a = createPoint(xa, ya);
-	seg->b = createPoint(xb, yb);
-	return seg;
-}
-
-point* createPoint(double x, double y) {
-	point* p;
-	p = Malloc(point);
-	p->x = x;
-	p->y = y;
-	return p;
+	seg->a.x = xa;
+	seg->a.y = ya;
+	seg->b.x = xb;
+	seg->b.y = yb;
+	return *seg;
 }

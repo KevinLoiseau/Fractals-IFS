@@ -1,7 +1,0 @@
-#ifndef H_UTILS
-#define H_UTILS
-#include "geometry.h"
-
-int power(int x, int y);
-int min(int a, int b);
-#endif

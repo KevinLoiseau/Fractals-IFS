@@ -3,16 +3,16 @@ CC=mpicc
 CAIRO_LIB=`pkg-config --cflags --libs cairo`
 
 all : clean build
-	mpirun -n 3 ./fractal > output.txt
+	mpirun -n 4 bin/fractal 13 > output.txt
 clean :
-	rm -f fractal *.o
+	rm -f bin/fractal *.o
 build:
-	$(CC) $(CFLAGS) source/fractal.c source/geometry.c source/utils.c -o fractal $(CAIRO_LIB)
+	$(CC) $(CFLAGS) source/fractal.c source/geometry.c source/utils.c -o bin/fractal $(CAIRO_LIB)
 buildTest :
-	$(CC) $(CFLAGS) source/test.c -o test $(CAIRO_LIB)
+	$(CC) $(CFLAGS) source/test.c -o bin/test $(CAIRO_LIB)
 
 test: buildTest
-	mpirun -n 4 ./test
+	mpirun -n 4 bin//test
 
 download:
 	#cairo
