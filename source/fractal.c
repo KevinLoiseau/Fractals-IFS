@@ -1,55 +1,49 @@
 #include <cairo.h>
+#include <gtk/gtk.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include "../header/geometry.h"
 #include "../header/utils.h"
+#include "../header/dragonCurve.h"
 #define Malloc(type) (type *) malloc(sizeof(type))
 #define MallocTab(type,size) (type *) malloc(sizeof(type)*size)
 
-double (*w)[6] = (double [][6]) {{0.5, -0.5, 0.5, 0.5, 0.0, 0.0}, {0.5, 0.5, -0.5, 0.5, 0.5, 0.5}}; //Levy Dragon OK
-/*double (*w)[6] = (double [][6]) {{0.382, 0, 0, 0.385, 0.3072, 0.619},
-				 {0.382, 0, 0, 0.385, 0.6033, 0.4044},
-				 {0.382, 0, 0, 0.385, 0.0139, 0.4044},
-				 {0.382, 0, 0, 0.385, 0.1253, 0.0595},
-				 {0.382, 0, 0, 0.385, 0.492, 0.0595}}; //Crystal OK*/
-/*double (*w)[6] = (double [][6]) {{0, -0.5, 0.5, 0, 0.5, 0},
-				 {0, 0.5, -0.5, 0, 0.5, 0.5},
-				 {0.5, 0, 0, 0.5, 0.25, 0.5}}; //Twin Christmas tree OK*/
-/*double (*w)[6] = (double [][6]) {{0.33333, 0, 0, 0.33333, 0, 0},
-				 {0.16667, 0.288675135, -0.288675135, 0.16667, 0.33333, 0},
-				 {0.16667, -0.288675135, 0.288675135, 0.16667, 0.5, -0.288675135},
-				 {0.33333, 0, 0, 0.333, 0.66667, 0}}; //Koch Curve OK*/
+//Variable Globales
+int nbObjectGrphTot;
 
-/*double (*w)[6] = (double [][6]) {{0.33333, 0, 0, 0.33333, 0, 0}, //ok
-				 {0.16667, 0.288675135, -0.288675135, 0.16667, 0.33333, 0}, //ok
-				 {0.16667, -0.288675135, 0.288675135, 0.16667, 0.5, -0.288675135}, //ok
-				 {0.33333, 0, 0, 0.333, 0.66667, 0}, //ok
-				 {0.16667, -0.288675135, 0.288675135, 0.16667, 0, 0}, //ok
-				 {0.16667, 0.288675135, -0.288675135, 0.16667, 0.33333, 0},
-				 {0.16667, -0.288675135, 0.288675135, 0.16667, 0.5, -0.288675135},
-				 {0.16667, -0.288675135, 0.288675135, 0.16667, 0.33333, 0}, //en cours
-				 {0.16667, 0.288675135, -0.288675135, -0.16667, 0.288675135, 0.288675135},
-				 {0.16667, 0.288675135, -0.288675135, 0.16667, 0.33333, 0},
-				 {0.16667, -0.288675135, 0.288675135, 0.16667, 0.5, -0.288675135},
-				 {0.16667, 0.288675135, -0.288675135, 0.16667, 0.33333, 0}}; //Koch snowfloke*/
+// Fonctions
+static void do_drawing(cairo_t *);
+static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data)
+{  
+	do_drawing(cr);  
 
-int nbFonctions = 2;
-void applyAffineFonctions(segment* seg, double a, double b, double c, double d, double e, double f);
-void applyAffineFonctionPoint(point* point, double a, double b, double c, double d, double e, double f);
+	return FALSE;
+}
+
+static void do_drawing(cairo_t *cr)
+{
+	int i;
+
+	cairo_set_source_rgb(cr, 0, 0, 0);
+	cairo_set_line_width(cr, 0.5);
+
+	for(i = 0 ; i < nbObjectGrphTot; i++) {
+		cairo_move_to (cr, fractal[i].a.x*300+150, fractal[i].a.y*300+150);
+		cairo_line_to (cr, fractal[i].b.x*300+150, fractal[i].b.y*300+150);
+	}
+
+	cairo_stroke(cr);     
+}
+
 int main (int argc, char *argv[])
 {
-	
 	int nbIteration;
 	int i,j;
 	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0;
 	int numprocessors, rank;
-	int nbObjectGrphTot;
 
-	
-   	int tag = 0;
-   	MPI_Status status;
 	MPI_Datatype pointDt;
 	MPI_Datatype segmentDt;
 
@@ -58,10 +52,9 @@ int main (int argc, char *argv[])
 	int iStart;
 	int iEnd;
 	int indice;
-	cairo_surface_t *surface;
-	cairo_t *cr;
-	segment* result;
 	
+	GtkWidget *window;
+	GtkWidget *darea;
 	if(argc != 2) {
 		
 		printf("miss argument\n");
@@ -86,88 +79,66 @@ int main (int argc, char *argv[])
 
 	nbObjetACalculer = nbObjectGrphTot/numprocessors;
 	resteACalculer = nbObjectGrphTot - (nbObjetACalculer*numprocessors);
-	
-	if ( rank == 0 )
-	{
-		surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, 600, 600);
-        	cr = cairo_create (surface);
-		printf("Nombre d'objets graphique à calculer : %d\n", nbObjectGrphTot);
-		printf("Reste à repartir : %d\n", resteACalculer);
-		for(i = 0 ; i < nbFonctions; i++) {
-			printf("f%d(a:%f ,b:%f, c:%f, d:%f, e:%f, f:%f)\n",i, w[i][0], w[i][1], w[i][2], w[i][3], w[i][4], w[i][5]);
-		}
-    	}
+		
+	fractal = MallocTab(segment, nbObjectGrphTot);	
+
 	if(resteACalculer > rank) {
 		complementACalculer = 1;
 	}
-	result = MallocTab(segment, nbObjetACalculer+complementACalculer);
+	morceau = MallocTab(segment, nbObjetACalculer+complementACalculer);
 	for(i = 0 ; i<nbObjetACalculer+complementACalculer ; i++) {
-		result[i] = createSegment(0.0, 1.0, 0.0, 0.0);
+		morceau[i] = createSegment(0.0, 1.0, 0.0, 0.0);
 	}
 	printf("p%d => Nombre d'objet graphique à calculer : %d\n", rank, nbObjetACalculer+complementACalculer); 
 	iStartOffset = min(rank,resteACalculer);
 	iEndOffset = min(rank+1,resteACalculer);
 	iStart = nbObjetACalculer*rank + iStartOffset;
 	iEnd = nbObjetACalculer*(rank+1) + iEndOffset;
+
 	for(i = iStart ; i<iEnd; i++) {
 		printf("============\n");
 		for(j = 0; j < nbIteration; j++) {
 			indice = (i/power(nbFonctions,nbIteration-1-j)) % nbFonctions;
 			printf("p%d objet %d iteration %d: fonctions applique %d\n",rank, i+1,j,indice+1);
-			applyAffineFonctions(&result[i-iStart], w[indice][0], w[indice][1], w[indice][2], w[indice][3], w[indice][4], w[indice][5]);
+			applyAffineFonctions(&morceau[i-iStart], w[indice][0], w[indice][1], w[indice][2], w[indice][3], w[indice][4], w[indice][5]);
 		}
-		printf("p%d objet %d application dans result[%d]\n", rank, i+1, i-iStart);
+		printf("p%d objet %d application dans morceau[%d]\n", rank, i+1, i-iStart);
 		printf("============\n");
 	}
 	
 	printf("##############\n");
 	
 	for(i = 0 ; i < nbObjetACalculer+complementACalculer ; i++) {
-		printf("p%d result[%d] a(%f,%f) b(%f,%f)\n",rank,i, result[i].a.x, result[i].a.y, result[i].b.x, result[i].b.y);
+		printf("p%d morceau[%d] a(%f,%f) b(%f,%f)\n",rank,i, morceau[i].a.x, morceau[i].a.y, morceau[i].b.x, morceau[i].b.y);
 	}
 	
 	printf("##############\n");
 
-	if(rank == 0 ) {
-		for(i = 0 ; i < nbObjetACalculer+complementACalculer ; i++) {
-			cairo_move_to (cr, result[i].a.x*300+150, result[i].a.y*300+150);
-			cairo_line_to (cr, result[i].b.x*300+150, result[i].b.y*300+150);
-		}
-		for(i = 1; i<numprocessors; i++) {
-			if(resteACalculer > i) {
-				complementACalculer = 1;
-			}
-			MPI_Recv(result, nbObjetACalculer+complementACalculer, segmentDt, i, tag, MPI_COMM_WORLD, &status);
-			for(j = 0 ; j < nbObjetACalculer+complementACalculer ; j++) {
-				cairo_move_to (cr, result[j].a.x*300+150, result[j].a.y*300+150);
-				cairo_line_to (cr, result[j].b.x*300+150, result[j].b.y*300+150);
-			}
-		}		
-		cairo_set_line_width(cr, 1.0);
-		cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
-		cairo_stroke(cr);
-		cairo_destroy (cr);
-		cairo_surface_write_to_png (surface, "hello.png");
-		cairo_surface_destroy (surface);
-	} else {
-		MPI_Send(result, nbObjetACalculer+complementACalculer, segmentDt, 0, tag, MPI_COMM_WORLD);
+
+	MPI_Gather(morceau, (nbObjetACalculer+complementACalculer), segmentDt, fractal, (nbObjetACalculer+complementACalculer), segmentDt, 0, MPI_COMM_WORLD);
+
+	if(rank == 0 ) {		
+		//Affichage de la fenêtre
+		gtk_init(&argc, &argv);
+
+		window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+
+		darea = gtk_drawing_area_new();
+		gtk_container_add(GTK_CONTAINER(window), darea);
+
+		g_signal_connect(G_OBJECT(darea), "draw", G_CALLBACK(on_draw_event), NULL);
+		g_signal_connect(G_OBJECT(window), "destroy",G_CALLBACK(gtk_main_quit), NULL);
+
+		gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+		gtk_window_set_default_size(GTK_WINDOW(window), 600, 600); 
+		gtk_window_set_title(GTK_WINDOW(window), "Fill & stroke");
+
+		gtk_widget_show_all(window);
+
+		gtk_main();
 	}
+
    	MPI_Finalize();
+
    	return 0;
-}
-
-
-void applyAffineFonctions(segment* seg, double a, double b, double c, double d, double e, double f) {
-	double originX = seg->a.x;
-	double originY = seg->a.y;
-	applyAffineFonctionPoint(&(seg->a), a, b, c, d, e, f);
-	applyAffineFonctionPoint(&(seg->b), a, b, c, d, e, f);
-}
-
-void applyAffineFonctionPoint(point* point, double a, double b, double c, double d, double e, double f) {
-	double x = point->x;
-	double y = point->y;
-	point->x = a * x + b * y + e;	
-	point->y = c * x + d * y + f;
-
 }
