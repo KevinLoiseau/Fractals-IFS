@@ -3,12 +3,14 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include "../header/geometry.h"
 #include "../header/utils.h"
 #include "../header/dragonCurve.h"
 #define Malloc(type) (type *) malloc(sizeof(type))
 #define MallocTab(type,size) (type *) malloc(sizeof(type)*size)
+#define TAILLE_MAX 100 // Tableau de taille 100
 
 //Variable Globales
 int nbObjectGrphTot;
@@ -40,7 +42,7 @@ static void do_drawing(cairo_t *cr)
 int main (int argc, char *argv[])
 {
 	int nbIteration;
-	int i,j;
+	int i,j,k;
 	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0;
 	int numprocessors, rank;
 
@@ -52,20 +54,68 @@ int main (int argc, char *argv[])
 	int iStart;
 	int iEnd;
 	int indice;
+
+	// Pour charger les paramètres à partir d'un fichier en argument
+    	FILE* param = NULL;
+	char ligne[TAILLE_MAX] = ""; // Chaîne vide de taille TAILLE_MAX
+	int i_ligne=0; 
+ 	char flottant[6]={0};
+	double **w;
+	int nbFonctions=0;
+	int nbColonnes=6; 
 	
 	GtkWidget *window;
 	GtkWidget *darea;
-	if(argc != 2) {
-		
+	if(argc != 3) {
 		printf("miss argument\n");
 		return 0;		
 	}
-	nbIteration = atoi(argv[1]);
-	nbObjectGrphTot = power(nbFonctions, nbIteration);
+	
+	nbIteration = atoi(argv[2]);
+
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &numprocessors);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	 
+
+	/*
+	* Chargement des paramètres à partir du fichier
+	*/
+	param = fopen(argv[1], "r+");
+	if (param != NULL){
+		//On récupère le nombre de fonctions en comptant le nombre de lignes
+		while (fgets(ligne, TAILLE_MAX, param) != NULL){
+			nbFonctions++;	
+		}
+		fseek(param, 0, SEEK_SET);
+		w=malloc(nbFonctions * sizeof(double*));
+
+		//On forme w en parsant le fichier
+        	while (fgets(ligne, TAILLE_MAX, param) != NULL){
+			i=0;
+			printf("i_ligne:%d\n",i_ligne);
+			w[i_ligne]=malloc(nbColonnes * sizeof(double));
+			do{
+				for(k=0 ; k<nbColonnes ; k++){
+					j=0;
+					do{
+						flottant[j]=ligne[i];
+						j++;
+						i++;
+					}while(ligne[i] != ' ' && ligne[i] != '\n');
+					w[i_ligne][k]=atof(flottant);
+					memset(flottant, 0, nbColonnes);
+				}
+			}while(ligne[i]!='\n');
+				i_ligne++;
+		}
+		fclose(param); //On ferme le fichier
+	}else{
+		printf("Impossible d'ouvrir le fichier %s", argv[1]);
+	}
+
+
+	nbObjectGrphTot = power(nbFonctions, nbIteration);
 
 	for( i = 0; i < argc; i++) {
 		printf("p%d arg[%d] : %s\n",rank, i, argv[i]);

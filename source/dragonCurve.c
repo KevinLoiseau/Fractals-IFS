@@ -2,8 +2,8 @@
 #include "../header/geometry.h"
 #include "../header/dragonCurve.h"
 
-double (*w)[6] = (double [][6]) {{0.5, -0.5, 0.5, 0.5, 0.0, 0.0}, {0.5, 0.5, -0.5, 0.5, 0.5, 0.5}}; //Levy Dragon OK
-int nbFonctions = 2;
+//double (*w)[6] = (double [][6]) {{0.5, -0.5, 0.5, 0.5, 0.0, 0.0}, {0.5, 0.5, -0.5, 0.5, 0.5, 0.5}}; //Levy Dragon OK
+//int nbFonctions = 2;
 
 void applyAffineFonctions(segment* seg, double a, double b, double c, double d, double e, double f) {
 	applyAffineFonctionPoint(&(seg->a), a, b, c, d, e, f);
