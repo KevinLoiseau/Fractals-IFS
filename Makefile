@@ -2,10 +2,10 @@ CFLAGS=-Wall
 CC=mpicc
 CAIRO_LIB=$(shell pkg-config cairo --cflags --libs)
 GTK_LIB=$(shell pkg-config gtk+-3.0 --cflags --libs)
-STATIC_LIB=source/fractal.c source/geometry.c source/utils.c source/dragonCurve.c
+STATIC_LIB=source/fractal.c source/geometry.c source/utils.c
 
 all : clean build
-	mpirun -n 4 bin/fractal "source/param.txt" 13
+	mpirun -n 6 bin/fractal "source/param.txt" 18				
 clean :
 	rm -f bin/fractal *.o *.txt *.png
 build:

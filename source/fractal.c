@@ -7,7 +7,7 @@
 #include <math.h>
 #include "../header/geometry.h"
 #include "../header/utils.h"
-#include "../header/dragonCurve.h"
+#include "../header/drawing.h"
 #define Malloc(type) (type *) malloc(sizeof(type))
 #define MallocTab(type,size) (type *) malloc(sizeof(type)*size)
 #define TAILLE_MAX 100 // Tableau de taille 100
@@ -49,11 +49,8 @@ int main (int argc, char *argv[])
 	MPI_Datatype pointDt;
 	MPI_Datatype segmentDt;
 
-	int iStartOffset;
-	int iEndOffset;
-	int iStart;
-	int iEnd;
-	int indice;
+	int iStartOffset, iEndOffset, iStart, iEnd, indice;
+	double startTime, endTime, speedup;
 
 	// Pour charger les paramètres à partir d'un fichier en argument
     	FILE* param = NULL;
@@ -76,6 +73,8 @@ int main (int argc, char *argv[])
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &numprocessors);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	startTime = MPI_Wtime();
 	 
 
 	/*
@@ -93,7 +92,6 @@ int main (int argc, char *argv[])
 		//On forme w en parsant le fichier
         	while (fgets(ligne, TAILLE_MAX, param) != NULL){
 			i=0;
-			printf("i_ligne:%d\n",i_ligne);
 			w[i_ligne]=malloc(nbColonnes * sizeof(double));
 			do{
 				for(k=0 ; k<nbColonnes ; k++){
@@ -117,10 +115,6 @@ int main (int argc, char *argv[])
 
 	nbObjectGrphTot = power(nbFonctions, nbIteration);
 
-	for( i = 0; i < argc; i++) {
-		printf("p%d arg[%d] : %s\n",rank, i, argv[i]);
-	}
-
 	MPI_Type_contiguous(2, MPI_DOUBLE, &pointDt);
 	MPI_Type_commit(&pointDt);
 	
@@ -139,35 +133,28 @@ int main (int argc, char *argv[])
 	for(i = 0 ; i<nbObjetACalculer+complementACalculer ; i++) {
 		morceau[i] = createSegment(0.0, 1.0, 0.0, 0.0);
 	}
-	printf("p%d => Nombre d'objet graphique à calculer : %d\n", rank, nbObjetACalculer+complementACalculer); 
+
 	iStartOffset = min(rank,resteACalculer);
 	iEndOffset = min(rank+1,resteACalculer);
 	iStart = nbObjetACalculer*rank + iStartOffset;
 	iEnd = nbObjetACalculer*(rank+1) + iEndOffset;
 
 	for(i = iStart ; i<iEnd; i++) {
-		printf("============\n");
 		for(j = 0; j < nbIteration; j++) {
 			indice = (i/power(nbFonctions,nbIteration-1-j)) % nbFonctions;
-			printf("p%d objet %d iteration %d: fonctions applique %d\n",rank, i+1,j,indice+1);
 			applyAffineFonctions(&morceau[i-iStart], w[indice][0], w[indice][1], w[indice][2], w[indice][3], w[indice][4], w[indice][5]);
 		}
-		printf("p%d objet %d application dans morceau[%d]\n", rank, i+1, i-iStart);
-		printf("============\n");
 	}
-	
-	printf("##############\n");
-	
-	for(i = 0 ; i < nbObjetACalculer+complementACalculer ; i++) {
-		printf("p%d morceau[%d] a(%f,%f) b(%f,%f)\n",rank,i, morceau[i].a.x, morceau[i].a.y, morceau[i].b.x, morceau[i].b.y);
-	}
-	
-	printf("##############\n");
 
 
 	MPI_Gather(morceau, (nbObjetACalculer+complementACalculer), segmentDt, fractal, (nbObjetACalculer+complementACalculer), segmentDt, 0, MPI_COMM_WORLD);
 
 	if(rank == 0 ) {		
+		endTime = MPI_Wtime();
+		speedup = endTime - startTime;
+
+		printf("speedup : %f - %f = %f\n", startTime, endTime, speedup);
+
 		//Affichage de la fenêtre
 		gtk_init(&argc, &argv);
 
@@ -181,12 +168,13 @@ int main (int argc, char *argv[])
 
 		gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 		gtk_window_set_default_size(GTK_WINDOW(window), 600, 600); 
-		gtk_window_set_title(GTK_WINDOW(window), "Fill & stroke");
+		gtk_window_set_title(GTK_WINDOW(window), "Fractal IFS");
 
 		gtk_widget_show_all(window);
 
 		gtk_main();
 	}
+
 
    	MPI_Finalize();
 
