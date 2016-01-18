@@ -39,55 +39,29 @@ static void do_drawing(cairo_t *cr)
 	cairo_stroke(cr);     
 }
 
-int main (int argc, char *argv[])
-{
-	int nbIteration;
-	int i,j,k;
-	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0;
-	int numprocessors, rank;
-
-	MPI_Datatype pointDt;
-	MPI_Datatype segmentDt;
-
-	int iStartOffset, iEndOffset, iStart, iEnd, indice;
-	double startTime, endTime, speedup;
-
+/* 
+*** Ouver un fichier, lit la configuration de la fractal et retourne w (schéma) par référence et le nb de fonction 
+*/
+void LoadFractal(char* file, double **w, int *nbFonctions){
 	// Pour charger les paramètres à partir d'un fichier en argument
-    	FILE* param = NULL;
+	FILE* param = NULL;
 	char ligne[TAILLE_MAX] = ""; // Chaîne vide de taille TAILLE_MAX
 	int i_ligne=0; 
  	char flottant[6]={0};
-	double **w;
-	int nbFonctions=0;
-	int nbColonnes=6; 
-	
-	GtkWidget *window;
-	GtkWidget *darea;
-	if(argc != 3) {
-		printf("miss argument\n");
-		return 0;		
-	}
-	
-	nbIteration = atoi(argv[2]);
-
-	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &numprocessors);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-	startTime = MPI_Wtime();
-	 
+	int nbColonnes=6;
+	int i,j,k;
+	int nbFct=0;
 
 	/*
 	* Chargement des paramètres à partir du fichier
 	*/
-	param = fopen(argv[1], "r+");
+	param = fopen(file, "r+");
 	if (param != NULL){
 		//On récupère le nombre de fonctions en comptant le nombre de lignes
 		while (fgets(ligne, TAILLE_MAX, param) != NULL){
-			nbFonctions++;	
+			nbFct++;
 		}
 		fseek(param, 0, SEEK_SET);
-		w=malloc(nbFonctions * sizeof(double*));
 
 		//On forme w en parsant le fichier
         	while (fgets(ligne, TAILLE_MAX, param) != NULL){
@@ -108,12 +82,47 @@ int main (int argc, char *argv[])
 				i_ligne++;
 		}
 		fclose(param); //On ferme le fichier
+		*nbFonctions = nbFct;
 	}else{
-		printf("Impossible d'ouvrir le fichier %s", argv[1]);
+		printf("Impossible d'ouvrir le fichier %s", file);
 	}
+}
 
+int main (int argc, char *argv[])
+{
+	int nbIteration;
+	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0;
+	int numprocessors, rank;
+	int i,j;
 
+	MPI_Datatype pointDt;
+	MPI_Datatype segmentDt;
+
+	int iStartOffset, iEndOffset, iStart, iEnd, indice;
+	double startTime, endTime, speedup;
+
+	double **w;
+	int nbFonctions=0;
+	
+	GtkWidget *window;
+	GtkWidget *darea;
+	if(argc != 3) {
+		printf("miss argument\n");
+		return 0;		
+	}
+	
+	nbIteration = atoi(argv[2]);
+
+	w=malloc(sizeof(double*));
+	LoadFractal(argv[1], w, &nbFonctions);
 	nbObjectGrphTot = power(nbFonctions, nbIteration);
+
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &numprocessors);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	startTime = MPI_Wtime();
+	 
 
 	MPI_Type_contiguous(2, MPI_DOUBLE, &pointDt);
 	MPI_Type_commit(&pointDt);
