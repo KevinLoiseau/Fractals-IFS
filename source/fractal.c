@@ -7,7 +7,6 @@
 #include <math.h>
 #include "../header/geometry.h"
 #include "../header/utils.h"
-#include "../header/drawing.h"
 #define Malloc(type) (type *) malloc(sizeof(type))
 #define MallocTab(type,size) (type *) malloc(sizeof(type)*size)
 #define TAILLE_MAX 100 // Tableau de taille 100
