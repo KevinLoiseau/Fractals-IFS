@@ -16,7 +16,120 @@
 int nbObjectGrphTot;
 
 // Fonctions
-static void do_drawing(cairo_t *);
+static void do_drawing(cairo_t *cr);
+static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data);
+void LoadFractal(char* file, double **w, int *nbFonctions);
+
+
+int main (int argc, char *argv[])
+{
+	int nbIteration;
+	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0;
+	int numprocessors, rank;
+	int i,j;
+
+	MPI_Datatype pointDt;
+	MPI_Datatype segmentDt;
+
+	int iStartOffset, iEndOffset, iStart, iEnd, indice;
+	double startTime, endTime, speedup;
+
+	double **w;
+	int nbFonctions=0;
+	
+	GtkWidget *window;
+	GtkWidget *darea;
+
+	if(argc != 3) {
+		printf("miss argument\n");
+		return 0;		
+	}
+	
+	/* Préparation des variables de la fractales */
+	nbIteration = atoi(argv[2]);
+
+	w=malloc(sizeof(double*));
+	LoadFractal(argv[1], w, &nbFonctions);
+	nbObjectGrphTot = power(nbFonctions, nbIteration);
+
+	/* Initialisation de MPI */
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &numprocessors);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	// Init speedup 
+	startTime = MPI_Wtime();
+	 
+
+	MPI_Type_contiguous(2, MPI_DOUBLE, &pointDt);
+	MPI_Type_commit(&pointDt);
+	
+	MPI_Type_contiguous(2, pointDt, &segmentDt);
+	MPI_Type_commit(&segmentDt);
+
+	/* Répartition entre les processus de la fractal */
+	nbObjetACalculer = nbObjectGrphTot/numprocessors;
+	resteACalculer = nbObjectGrphTot - (nbObjetACalculer*numprocessors);
+	
+	fractal = MallocTab(segment, nbObjectGrphTot);	
+
+	if(resteACalculer > rank) {
+		complementACalculer = 1;
+	}
+	morceau = MallocTab(segment, nbObjetACalculer+complementACalculer);
+	for(i = 0 ; i<nbObjetACalculer+complementACalculer ; i++) {
+		morceau[i] = createSegment(0.0, 1.0, 0.0, 0.0);
+	}
+
+	iStartOffset = min(rank,resteACalculer);
+	iEndOffset = min(rank+1,resteACalculer);
+	iStart = nbObjetACalculer*rank + iStartOffset;
+	iEnd = nbObjetACalculer*(rank+1) + iEndOffset;
+
+	for(i = iStart ; i<iEnd; i++) {
+		for(j = 0; j < nbIteration; j++) {
+			indice = (i/power(nbFonctions,nbIteration-1-j)) % nbFonctions;
+			applyAffineFonctions(&morceau[i-iStart], w[indice][0], w[indice][1], w[indice][2], w[indice][3], w[indice][4], w[indice][5]);
+		}
+	}
+
+	MPI_Gather(morceau, (nbObjetACalculer+complementACalculer), segmentDt, fractal, (nbObjetACalculer+complementACalculer), segmentDt, 0, MPI_COMM_WORLD);
+
+	if(rank == 0 ) {		
+		// Speedup 
+		endTime = MPI_Wtime();
+		speedup = endTime - startTime;
+		// Affichage du speedup
+		printf("speedup : %f - %f = %f\n", startTime, endTime, speedup);
+
+		/* Affichage de la fenêtre */
+		gtk_init(&argc, &argv);
+
+		window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+
+		darea = gtk_drawing_area_new();
+		gtk_container_add(GTK_CONTAINER(window), darea);
+
+		g_signal_connect(G_OBJECT(darea), "draw", G_CALLBACK(on_draw_event), NULL);
+		g_signal_connect(G_OBJECT(window), "destroy",G_CALLBACK(gtk_main_quit), NULL);
+
+		gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+		gtk_window_set_default_size(GTK_WINDOW(window), 600, 600); 
+		gtk_window_set_title(GTK_WINDOW(window), "Fractal IFS");
+
+		gtk_widget_show_all(window);
+		gtk_main();
+	}
+
+
+   	MPI_Finalize();
+
+   	return 0;
+}
+
+/*
+*** FONCTIONS
+*/
 static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data)
 {  
 	do_drawing(cr);  
@@ -41,8 +154,7 @@ static void do_drawing(cairo_t *cr)
 
 /* 
 *** Ouver un fichier, lit la configuration de la fractal et retourne w (schéma) par référence et le nb de fonction 
-*/
-void LoadFractal(char* file, double **w, int *nbFonctions){
+*/void LoadFractal(char* file, double **w, int *nbFonctions){
 	// Pour charger les paramètres à partir d'un fichier en argument
 	FILE* param = NULL;
 	char ligne[TAILLE_MAX] = ""; // Chaîne vide de taille TAILLE_MAX
@@ -86,106 +198,4 @@ void LoadFractal(char* file, double **w, int *nbFonctions){
 	}else{
 		printf("Impossible d'ouvrir le fichier %s", file);
 	}
-}
-
-int main (int argc, char *argv[])
-{
-	int nbIteration;
-	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0;
-	int numprocessors, rank;
-	int i,j;
-
-	MPI_Datatype pointDt;
-	MPI_Datatype segmentDt;
-
-	int iStartOffset, iEndOffset, iStart, iEnd, indice;
-	double startTime, endTime, speedup;
-
-	double **w;
-	int nbFonctions=0;
-	
-	GtkWidget *window;
-	GtkWidget *darea;
-	if(argc != 3) {
-		printf("miss argument\n");
-		return 0;		
-	}
-	
-	nbIteration = atoi(argv[2]);
-
-	w=malloc(sizeof(double*));
-	LoadFractal(argv[1], w, &nbFonctions);
-	nbObjectGrphTot = power(nbFonctions, nbIteration);
-
-	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &numprocessors);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-	startTime = MPI_Wtime();
-	 
-
-	MPI_Type_contiguous(2, MPI_DOUBLE, &pointDt);
-	MPI_Type_commit(&pointDt);
-	
-	MPI_Type_contiguous(2, pointDt, &segmentDt);
-	MPI_Type_commit(&segmentDt);
-
-	nbObjetACalculer = nbObjectGrphTot/numprocessors;
-	resteACalculer = nbObjectGrphTot - (nbObjetACalculer*numprocessors);
-		
-	fractal = MallocTab(segment, nbObjectGrphTot);	
-
-	if(resteACalculer > rank) {
-		complementACalculer = 1;
-	}
-	morceau = MallocTab(segment, nbObjetACalculer+complementACalculer);
-	for(i = 0 ; i<nbObjetACalculer+complementACalculer ; i++) {
-		morceau[i] = createSegment(0.0, 1.0, 0.0, 0.0);
-	}
-
-	iStartOffset = min(rank,resteACalculer);
-	iEndOffset = min(rank+1,resteACalculer);
-	iStart = nbObjetACalculer*rank + iStartOffset;
-	iEnd = nbObjetACalculer*(rank+1) + iEndOffset;
-
-	for(i = iStart ; i<iEnd; i++) {
-		for(j = 0; j < nbIteration; j++) {
-			indice = (i/power(nbFonctions,nbIteration-1-j)) % nbFonctions;
-			applyAffineFonctions(&morceau[i-iStart], w[indice][0], w[indice][1], w[indice][2], w[indice][3], w[indice][4], w[indice][5]);
-		}
-	}
-
-
-	MPI_Gather(morceau, (nbObjetACalculer+complementACalculer), segmentDt, fractal, (nbObjetACalculer+complementACalculer), segmentDt, 0, MPI_COMM_WORLD);
-
-	if(rank == 0 ) {		
-		endTime = MPI_Wtime();
-		speedup = endTime - startTime;
-
-		printf("speedup : %f - %f = %f\n", startTime, endTime, speedup);
-
-		//Affichage de la fenêtre
-		gtk_init(&argc, &argv);
-
-		window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-
-		darea = gtk_drawing_area_new();
-		gtk_container_add(GTK_CONTAINER(window), darea);
-
-		g_signal_connect(G_OBJECT(darea), "draw", G_CALLBACK(on_draw_event), NULL);
-		g_signal_connect(G_OBJECT(window), "destroy",G_CALLBACK(gtk_main_quit), NULL);
-
-		gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-		gtk_window_set_default_size(GTK_WINDOW(window), 600, 600); 
-		gtk_window_set_title(GTK_WINDOW(window), "Fractal IFS");
-
-		gtk_widget_show_all(window);
-
-		gtk_main();
-	}
-
-
-   	MPI_Finalize();
-
-   	return 0;
 }
