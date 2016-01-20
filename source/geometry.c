@@ -24,5 +24,4 @@ void applyAffineFonctionPoint(point* point, double a, double b, double c, double
 	double y = point->y;
 	point->x = a * x + b * y + e;	
 	point->y = c * x + d * y + f;
-
 }

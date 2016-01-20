@@ -1,5 +1,4 @@
 #include <cairo.h>
-#include <gtk/gtk.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +6,6 @@
 #include <math.h>
 #include "../header/geometry.h"
 #include "../header/utils.h"
-#include "../header/drawing.h"
 #define Malloc(type) (type *) malloc(sizeof(type))
 #define MallocTab(type,size) (type *) malloc(sizeof(type)*size)
 #define TAILLE_MAX 100 // Tableau de taille 100
@@ -16,8 +14,6 @@
 int nbObjectGrphTot;
 
 // Fonctions
-static void do_drawing(cairo_t *cr);
-static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data);
 void LoadFractal(char* file, double **w, int *nbFonctions);
 
 
@@ -37,8 +33,8 @@ int main (int argc, char *argv[])
 	double **w;
 	int nbFonctions=0;
 	
-	GtkWidget *window;
-	GtkWidget *darea;
+	cairo_surface_t *surface;
+	cairo_t *cr;
 
 	if(argc != 3) {
 		printf("miss argument\n");
@@ -94,7 +90,7 @@ int main (int argc, char *argv[])
 	}
 
 	MPI_Gather(morceau, (nbObjetACalculer+complementACalculer), segmentDt, fractal, (nbObjetACalculer+complementACalculer), segmentDt, 0, MPI_COMM_WORLD);
-
+	
 	if(rank == 0 ) {		
 		// Speedup 
 		endTime = MPI_Wtime();
@@ -102,23 +98,20 @@ int main (int argc, char *argv[])
 		// Affichage du speedup
 		printf("speedup : %f - %f = %f\n", startTime, endTime, speedup);
 
-		/* Affichage de la fenêtre */
-		gtk_init(&argc, &argv);
+		// dessin
+		surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, 600, 600);
+		cr = cairo_create (surface);
 
-		window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-
-		darea = gtk_drawing_area_new();
-		gtk_container_add(GTK_CONTAINER(window), darea);
-
-		g_signal_connect(G_OBJECT(darea), "draw", G_CALLBACK(on_draw_event), NULL);
-		g_signal_connect(G_OBJECT(window), "destroy",G_CALLBACK(gtk_main_quit), NULL);
-
-		gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-		gtk_window_set_default_size(GTK_WINDOW(window), 600, 600); 
-		gtk_window_set_title(GTK_WINDOW(window), "Fractal IFS");
-
-		gtk_widget_show_all(window);
-		gtk_main();
+		for(i = 0 ; i < nbObjectGrphTot; i++) {
+			cairo_move_to (cr, fractal[i].a.x*300+150, fractal[i].a.y*300+150);
+			cairo_line_to (cr, fractal[i].b.x*300+150, fractal[i].b.y*300+150);
+		}
+		cairo_set_line_width(cr, 1.0);
+		cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+		cairo_stroke(cr);
+		cairo_destroy (cr);
+		cairo_surface_write_to_png (surface, "fractal.png");
+		cairo_surface_destroy (surface);
 	}
 
 
@@ -130,27 +123,6 @@ int main (int argc, char *argv[])
 /*
 *** FONCTIONS
 */
-static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data)
-{  
-	do_drawing(cr);  
-
-	return FALSE;
-}
-
-static void do_drawing(cairo_t *cr)
-{
-	int i;
-
-	cairo_set_source_rgb(cr, 0, 0, 0);
-	cairo_set_line_width(cr, 0.5);
-
-	for(i = 0 ; i < nbObjectGrphTot; i++) {
-		cairo_move_to (cr, fractal[i].a.x*300+150, fractal[i].a.y*300+150);
-		cairo_line_to (cr, fractal[i].b.x*300+150, fractal[i].b.y*300+150);
-	}
-
-	cairo_stroke(cr);     
-}
 
 /* 
 *** Ouver un fichier, lit la configuration de la fractal et retourne w (schéma) par référence et le nb de fonction 
