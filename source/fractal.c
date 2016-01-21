@@ -21,11 +21,14 @@ int main (int argc, char *argv[])
 {
 	int nbIteration;
 	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0;
-	int numprocessors, rank;
+	int nbProc, rank, _nbProc, _rank;
 	int i,j;
+   	int tag = 0;
 
 	MPI_Datatype pointDt;
 	MPI_Datatype segmentDt;
+   	//MPI_Request req;
+   	MPI_Status status;
 
 	int iStartOffset, iEndOffset, iStart, iEnd, indice;
 	double startTime, endTime, speedup;
@@ -50,8 +53,16 @@ int main (int argc, char *argv[])
 
 	/* Initialisation de MPI */
 	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &numprocessors);
+	MPI_Comm_size(MPI_COMM_WORLD, &nbProc);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	if(nbProc > 1){
+		_nbProc = nbProc - 1;
+		_rank = rank-1;
+	}else{
+		_nbProc = nbProc;
+		_rank = rank;
+	}
 
 	// Init speedup 
 	startTime = MPI_Wtime();
@@ -64,34 +75,34 @@ int main (int argc, char *argv[])
 	MPI_Type_commit(&segmentDt);
 
 	/* Répartition entre les processus de la fractal */
-	nbObjetACalculer = nbObjectGrphTot/numprocessors;
-	resteACalculer = nbObjectGrphTot - (nbObjetACalculer*numprocessors);
-	
-	fractal = MallocTab(segment, nbObjectGrphTot);	
+	nbObjetACalculer = nbObjectGrphTot/_nbProc;
+	resteACalculer = nbObjectGrphTot - (nbObjetACalculer*_nbProc);
 
-	if(resteACalculer > rank) {
+	if(resteACalculer > _rank) {
 		complementACalculer = 1;
 	}
-	morceau = MallocTab(segment, nbObjetACalculer+complementACalculer);
+
+	fractal = MallocTab(segment, nbObjetACalculer+complementACalculer);
+
 	for(i = 0 ; i<nbObjetACalculer+complementACalculer ; i++) {
-		morceau[i] = createSegment(0.0, 1.0, 0.0, 0.0);
+		fractal[i] = createSegment(0.0, 1.0, 0.0, 0.0);
 	}
 
-	iStartOffset = min(rank,resteACalculer);
-	iEndOffset = min(rank+1,resteACalculer);
-	iStart = nbObjetACalculer*rank + iStartOffset;
-	iEnd = nbObjetACalculer*(rank+1) + iEndOffset;
+	if(rank > 0 || nbProc == 1){
+		iStartOffset = min(_rank,resteACalculer);
+		iEndOffset = min(_rank+1,resteACalculer);
+		iStart = nbObjetACalculer*_rank + iStartOffset;
+		iEnd = nbObjetACalculer*(_rank+1) + iEndOffset;
 
-	for(i = iStart ; i<iEnd; i++) {
-		for(j = 0; j < nbIteration; j++) {
-			indice = (i/power(nbFonctions,nbIteration-1-j)) % nbFonctions;
-			applyAffineFonctions(&morceau[i-iStart], w[indice][0], w[indice][1], w[indice][2], w[indice][3], w[indice][4], w[indice][5]);
+		for(i = iStart ; i<iEnd; i++) {
+			for(j = 0; j < nbIteration; j++) {
+				indice = (i/power(nbFonctions,nbIteration-1-j)) % nbFonctions;
+				applyAffineFonctions(&fractal[i-iStart], w[indice][0], w[indice][1], w[indice][2], w[indice][3], w[indice][4], w[indice][5]);
+			}
 		}
 	}
 
-	MPI_Gather(morceau, (nbObjetACalculer+complementACalculer), segmentDt, fractal, (nbObjetACalculer+complementACalculer), segmentDt, 0, MPI_COMM_WORLD);
-	
-	if(rank == 0 ) {		
+	if(rank == 0 ) {
 		// Speedup 
 		endTime = MPI_Wtime();
 		speedup = endTime - startTime;
@@ -102,18 +113,36 @@ int main (int argc, char *argv[])
 		surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, 600, 600);
 		cr = cairo_create (surface);
 
-		for(i = 0 ; i < nbObjectGrphTot; i++) {
-			cairo_move_to (cr, fractal[i].a.x*300+150, fractal[i].a.y*300+150);
-			cairo_line_to (cr, fractal[i].b.x*300+150, fractal[i].b.y*300+150);
+		if(nbProc == 1){
+			for(i = 0 ; i < nbObjetACalculer+complementACalculer ; i++) {
+				cairo_move_to (cr, fractal[i].a.x*300+150, fractal[i].a.y*300+150);
+				cairo_line_to (cr, fractal[i].b.x*300+150, fractal[i].b.y*300+150);
+			}
+		}else{
+			for(i = 1; i<nbProc; i++) {
+				if(resteACalculer > i) {
+					complementACalculer = 1;
+				}
+
+				//MPI_Irecv(fractal, nbObjetACalculer+complementACalculer, segmentDt, i, tag, MPI_COMM_WORLD, &req);
+				MPI_Recv(fractal, nbObjetACalculer+complementACalculer, segmentDt, i, tag, MPI_COMM_WORLD, &status);
+				for(j = 0 ; j < nbObjetACalculer+complementACalculer ; j++) {
+					cairo_move_to (cr, fractal[j].a.x*300+150, fractal[j].a.y*300+150);
+					cairo_line_to (cr, fractal[j].b.x*300+150, fractal[j].b.y*300+150);
+				}
+			}
 		}
+
 		cairo_set_line_width(cr, 1.0);
 		cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 		cairo_stroke(cr);
 		cairo_destroy (cr);
 		cairo_surface_write_to_png (surface, "fractal.png");
 		cairo_surface_destroy (surface);
+	}else{
+		//MPI_Isend(fractal, nbObjetACalculer+complementACalculer, segmentDt, 0, tag, MPI_COMM_WORLD, &req);
+		MPI_Send(fractal, nbObjetACalculer+complementACalculer, segmentDt, 0, tag, MPI_COMM_WORLD);
 	}
-
 
    	MPI_Finalize();
 
