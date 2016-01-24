@@ -4,8 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <gtk/gtk.h>
 #include "../header/geometry.h"
 #include "../header/utils.h"
+#include "../header/interface.h"
 #define Malloc(type) (type *) malloc(sizeof(type))
 #define MallocTab(type,size) (type *) malloc(sizeof(type)*size)
 #define TAILLE_MAX 100 // Tableau de taille 100
@@ -42,6 +44,8 @@ int main (int argc, char *argv[])
 
 	cairo_surface_t *surface;
 	cairo_t *cr;
+
+	GtkWidget *window;
 
 	// Pour charger les paramètres à partir d'un fichier en argument
 	FILE* param = NULL;
@@ -189,10 +193,6 @@ int main (int argc, char *argv[])
 
 	if(rank == 0) {
 		// Speedup 
-		endTime = MPI_Wtime();
-		execTime = endTime - startTime;
-		// Affichage du speedup
-		printf("temps d'exécution : %f - %f = %f\n", startTime, endTime, execTime);
 
 		// dessin
 		surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, 1000, 1000);
@@ -223,17 +223,33 @@ int main (int argc, char *argv[])
 			}
 		//}
 
+
+		// Temps d'exécution 
+		endTime = MPI_Wtime();
+		execTime = endTime - startTime;
+		// Affichage du temps d'exécution 
+		printf("Temps d'exécution : %f - %f = %f\n", startTime, endTime, execTime);
+
+		//Dessin et mise en image png de la fractal
 		cairo_set_line_width(cr, 1.0);
 		cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 		cairo_stroke(cr);
 		cairo_destroy (cr);
 		cairo_surface_write_to_png (surface, "fractal.png");
 		cairo_surface_destroy (surface);
+
+		// Création de la fenêtre graphique
+		gtk_init(&argc, &argv);
+
+		window = create_window("fractal.png");
+
+		gtk_widget_show_all(window);
+  		gtk_main();
+
 	}else{
 		MPI_Send(fractal, nbObjetACalculer+complementACalculer, segmentDt, 0, tag, MPI_COMM_WORLD);
 	}
 
    	MPI_Finalize();
-
-   	exit(0);
+	return 0;
 }
