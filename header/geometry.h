@@ -18,7 +18,6 @@ typedef struct Segment {
 /*
 **	VARIABLES
 */
-segment* morceau;
 segment* fractal;
 
 /*
