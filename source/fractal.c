@@ -11,9 +11,20 @@
 #define Malloc(type) (type *) malloc(sizeof(type))
 #define MallocTab(type,size) (type *) malloc(sizeof(type)*size)
 #define TAILLE_MAX 100 // Tableau de taille 100
-
+#define DEFAULT_SCALE_FACTOR 400
+#define DEFAULT_SIZE_X 600
+#define DEFAULT_SIZE_Y 600
+#define DEFAULT_OFFSET_X 150
+#define DEFAULT_OFFSET_Y 450
 //Variable Globales
 int nbObjectGrphTot;
+double size_x = DEFAULT_SIZE_X;
+double size_y = DEFAULT_SIZE_Y;
+int scale_factor =  DEFAULT_SCALE_FACTOR;
+double offset_x = DEFAULT_OFFSET_X;
+double offset_y = DEFAULT_OFFSET_Y;
+
+void draw_fractal_part(cairo_t *cr, int fractal_part_size, segment *fractal_part);
 
 int main (int argc, char *argv[])
 {
@@ -37,10 +48,12 @@ int main (int argc, char *argv[])
 	double yMax = 0.0;
 	double xMin = 0.0;
 	double xMax = 1.0;
-	double yRatio = 0;
-	double xRatio = 0;	
-	double yCenter = (yMax-yMin)/2;
-	double xCenter = (xMax-xMin)/2;
+	double yCenter;
+	double xCenter;
+	double reduce_yMin;
+	double reduce_yMax;
+	double reduce_xMin;
+	double reduce_xMax;
 
 	cairo_surface_t *surface;
 	cairo_t *cr;
@@ -101,17 +114,11 @@ int main (int argc, char *argv[])
 					i_ligne++;
 			}
 			fclose(param); //On ferme le fichier
-			//for(i = 1; i<nbProc ; i++) {
-			//	MPI_Send(&nbFonctions, 1, MPI_INT, i, tag, MPI_COMM_WORLD);
-			//}
 		}else{
 			printf("Impossible d'ouvrir le fichier %s", file);
 			MPI_Abort(MPI_COMM_WORLD, 1);
 			exit(1);
 		}
-	//} else {
-	//	MPI_Recv(&nbFonctions, 1, MPI_INT, 0, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	//	printf("(rank %d) nbFonctions : %d",rank, nbFonctions);
 	//} 
 
 	nbObjectGrphTot = power(nbFonctions, nbIteration);
@@ -124,7 +131,7 @@ int main (int argc, char *argv[])
 		_rank = rank;
 	//}
 
-	// Init speedup 
+	// Init calcul temps exécution 
 	startTime = MPI_Wtime();
 	 
 
@@ -141,9 +148,10 @@ int main (int argc, char *argv[])
 		if(resteACalculer > _rank) {
 			complementACalculer = 1;
 		}
-		fractal = MallocTab(segment, nbObjetACalculer+complementACalculer);
-		printf("(rank %d) nb object Total : %d\n", rank, nbObjectGrphTot);
-		printf("(rank %d) nb object à calculer : %d\n", rank, nbObjetACalculer+complementACalculer);
+		fractal = MallocTab(segment, nbObjetACalculer+1);
+
+		//printf("(rank %d) nb object Total : %d\n", rank, nbObjectGrphTot);
+		//printf("(rank %d) nb object à calculer : %d\n", rank, nbObjetACalculer+complementACalculer);
 		for(i = 0 ; i<nbObjetACalculer+complementACalculer ; i++) {
 			fractal[i] = createSegment(0.0, 1.0, 0.0, 0.0);
 		}
@@ -153,10 +161,11 @@ int main (int argc, char *argv[])
 		iStart = nbObjetACalculer*_rank + iStartOffset;
 		iEnd = nbObjetACalculer*(_rank+1) + iEndOffset;
 		
-		printf("(rank %d) iStart: %d, iEnd: %d\n", rank, iStart, iEnd-1);
+		//printf("(rank %d) iStart: %d, iEnd: %d\n", rank, iStart, iEnd-1);
 		for(i = iStart ; i<iEnd; i++) {
-			for(j = 0; j < nbIteration; j++) {
-				indice = (i/power(nbFonctions,nbIteration-1-j)) % nbFonctions;
+			for(j = nbIteration-1; j > 0; j--) {
+				indice = (i/power(nbFonctions,nbIteration-j)) % nbFonctions;
+				//printf("(rank %d) fractal[%d] iteration n°%d application fonction %d\n", rank, i-iStart, nbIteration-j, indice);
 				applyAffineFonctions(&fractal[i-iStart], w[indice][0], w[indice][1], w[indice][2], w[indice][3], w[indice][4], w[indice][5]);
 				
 			}
@@ -180,33 +189,53 @@ int main (int argc, char *argv[])
 			} else if (yMax < fractal[i-iStart].b.y) {
 				yMax = fractal[i-iStart].b.y;
 			}
-			xRatio = xMax / xMin;
-			yRatio = yMax / yMin;
-			yCenter = (yMax-yMin)/2;
-			xCenter = (xMax-xMin)/2;
 			
 		}
+		
+	
+		MPI_Reduce(&yMin,&reduce_yMin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+		MPI_Reduce(&xMin,&reduce_xMin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+		MPI_Reduce(&yMax,&reduce_yMax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+		MPI_Reduce(&xMax,&reduce_xMax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 		printf("(rank %d) xMin: %f, xMax: %f, yMin: %f, yMax: %f\n", rank, xMin, xMax, yMin, yMax);
-		printf("(rank %d) xCenter: %f, yCenter: %f\n", rank,  xCenter, yCenter);
-		printf("(rank %d) xRatio: %f, yRatio: %f\n", rank,  xRatio, yRatio);
+		if(rank == 0) {
+			printf("(rank %d) (after reduce) xMin: %f, xMax: %f, yMin: %f, yMax: %f\n", rank, reduce_xMin, reduce_xMax, reduce_yMin, reduce_yMax);
+			printf("(rank %d) (after reduce+scale) xMin: %f, xMax: %f, yMin: %f, yMax: %f\n", rank, reduce_xMin * scale_factor, reduce_xMax * scale_factor, reduce_yMin * scale_factor, reduce_yMax * scale_factor);
+			
+			size_x = ((int)(reduce_xMax * scale_factor - reduce_xMin * scale_factor)/100+1)*100;
+			size_y = ((int)(reduce_yMax * scale_factor - reduce_yMin * scale_factor)/100+1)*100;
+			printf("(rank %d) size_x: %f, size_y: %f\n", rank, size_x, size_y);
+			xCenter = size_x/2;
+			yCenter = size_y/2;
+			printf("(rank %d) center_x: %f, center_y: %f\n", rank, xCenter, yCenter);
+			double diff_x = size_x - (reduce_xMax * scale_factor - reduce_xMin * scale_factor);
+			double diff_y = size_y - (reduce_yMax * scale_factor - reduce_yMin * scale_factor);
+			offset_x = 0;
+			if (reduce_xMin< 0) {
+				offset_x = - (reduce_xMin * scale_factor);
+			}
+			offset_x += (size_x - (reduce_xMax * scale_factor - reduce_xMin * scale_factor))/2;
+			offset_y = size_y;
+			if (reduce_yMin * scale_factor < 0) {
+				offset_y += (reduce_yMin * scale_factor);
+			}
+			offset_y -= (size_y - (reduce_yMax * scale_factor - reduce_yMin * scale_factor))/2;
+			printf("(rank %d) diff_x: %f, diff_y: %f\n", rank, diff_x, diff_y);	
+			printf("(rank %d) offset_x: %f, offset_y: %f\n", rank, offset_x, offset_y);
+		}
 	//}
-
-	if(rank == 0) {
-		// Speedup 
+	if(rank == 0) { 
 
 		// dessin
-		surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, 1000, 1000);
+		surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, size_x, size_y);
 		cr = cairo_create (surface);
-		cairo_rectangle(cr, 0.0, 0.0, 1000, 1000);
+		cairo_rectangle(cr, 0.0, 0.0, size_x, size_y);
 		cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
 		cairo_fill(cr);
 		
 		cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
 		//if(nbProc == 1){
-			for(i = 0 ; i < nbObjetACalculer+complementACalculer ; i++) {
-				cairo_move_to (cr, fractal[i].a.x*500+250, fractal[i].a.y*-500+750);
-				cairo_line_to (cr, fractal[i].b.x*500+250, fractal[i].b.y*-500+750);
-			}
+			draw_fractal_part(cr, nbObjetACalculer+complementACalculer, fractal);
 		//}else{
 			for(i = 1; i<nbProc; i++) {
 				complementACalculer = 0;
@@ -214,12 +243,9 @@ int main (int argc, char *argv[])
 					complementACalculer = 1;
 				}
 				
-				//fractal = MallocTab(segment, nbObjetACalculer+complementACalculer);
-				MPI_Recv(fractal, nbObjetACalculer+complementACalculer, segmentDt, i, tag, MPI_COMM_WORLD, &status);
-				for(j = 0 ; j < nbObjetACalculer+complementACalculer ; j++) {
-					cairo_move_to (cr, fractal[j].a.x*500+250, fractal[j].a.y*-500+750);
-					cairo_line_to (cr, fractal[j].b.x*500+250, fractal[j].b.y*-500+750);
-				}
+				tag = i;
+				MPI_Recv(fractal, nbObjetACalculer+1, segmentDt, i, tag, MPI_COMM_WORLD, &status);
+				draw_fractal_part(cr, nbObjetACalculer+complementACalculer, fractal);
 			}
 		//}
 
@@ -247,9 +273,18 @@ int main (int argc, char *argv[])
   		gtk_main();
 
 	}else{
-		MPI_Send(fractal, nbObjetACalculer+complementACalculer, segmentDt, 0, tag, MPI_COMM_WORLD);
+		tag = rank;
+		MPI_Send(fractal, nbObjetACalculer+1, segmentDt, 0, tag, MPI_COMM_WORLD);
+		
 	}
-
    	MPI_Finalize();
 	return 0;
+}
+
+void draw_fractal_part(cairo_t *cr, int fractal_part_size, segment *fractal_part) {
+	int i;
+	for(i = 0 ; i < fractal_part_size ; i++) {
+		cairo_move_to (cr, fractal_part[i].a.x * scale_factor + offset_x, fractal_part[i].a.y * -scale_factor + offset_y);
+		cairo_line_to (cr, fractal_part[i].b.x * scale_factor + offset_x, fractal_part[i].b.y * -scale_factor + offset_y);
+	}
 }
