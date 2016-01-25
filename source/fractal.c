@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <gtk/gtk.h>
 #include "../header/geometry.h"
 #include "../header/utils.h"
 #include "../header/fractal.h"
@@ -24,7 +23,6 @@ void createFractal(int rank, int nbProc, char* file, int nbIteration){
 	int nbFonctions = 0;
 
 	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0, nbObjectGrphTot;
-	int _nbProc, _rank;
 	int i,j,k;
    	int tag = 0;
 
@@ -35,8 +33,6 @@ void createFractal(int rank, int nbProc, char* file, int nbIteration){
 	double yMax = 0.0;
 	double xMin = 0.0;
 	double xMax = 1.0;
-	double yCenter;
-	double xCenter;
 	double reduce_yMin;
 	double reduce_yMax;
 	double reduce_xMin;
@@ -112,22 +108,7 @@ void createFractal(int rank, int nbProc, char* file, int nbIteration){
 		MPI_Bcast(w[i], nbColonnes, MPI_DOUBLE,0, MPI_COMM_WORLD);		
 	}
 
-
-	for(i=0 ; i<nbFonctions ; i++){
-		for(j=0 ; j<nbColonnes ; j++){
-			printf("rank %d fonction w : %f\n", rank,  w[i][j]);
-		}
-	}
-
 	nbObjectGrphTot = power(nbFonctions, nbIteration);
-
-	//if(nbProc > 1){
-	//	_nbProc = nbProc - 1;
-	//	_rank = rank-1;
-	//}else{
-		_nbProc = nbProc;
-		_rank = rank;
-	//}
 
 	// Init calcul temps exécution 
 	startTime = MPI_Wtime();
@@ -139,31 +120,27 @@ void createFractal(int rank, int nbProc, char* file, int nbIteration){
 	MPI_Type_contiguous(2, pointDt, &segmentDt);
 	MPI_Type_commit(&segmentDt);
 	/* Répartition entre les processus de la fractal */
-	nbObjetACalculer = nbObjectGrphTot/_nbProc;
-	resteACalculer = nbObjectGrphTot - (nbObjetACalculer*_nbProc);
-	//if(rank > 0 || nbProc == 1){
+	nbObjetACalculer = nbObjectGrphTot/nbProc;
+	resteACalculer = nbObjectGrphTot - (nbObjetACalculer*nbProc);
 		
-		if(resteACalculer > _rank) {
+		if(resteACalculer > rank) {
 			complementACalculer = 1;
 		}
 		fractal = MallocTab(segment, nbObjetACalculer+1);
 
-		//printf("(rank %d) nb object Total : %d\n", rank, nbObjectGrphTot);
-		//printf("(rank %d) nb object à calculer : %d\n", rank, nbObjetACalculer+complementACalculer);
 		for(i = 0 ; i<nbObjetACalculer+complementACalculer ; i++) {
 			fractal[i] = createSegment(0.0, 1.0, 0.0, 0.0);
 		}
 		
-		iStartOffset = min(_rank,resteACalculer);
-		iEndOffset = min(_rank+1,resteACalculer);
-		iStart = nbObjetACalculer*_rank + iStartOffset;
-		iEnd = nbObjetACalculer*(_rank+1) + iEndOffset;
+		iStartOffset = min(rank,resteACalculer);
+		iEndOffset = min(rank+1,resteACalculer);
+		iStart = nbObjetACalculer*rank + iStartOffset;
+		iEnd = nbObjetACalculer*(rank+1) + iEndOffset;
 		
-		//printf("(rank %d) iStart: %d, iEnd: %d\n", rank, iStart, iEnd-1);
+
 		for(i = iStart ; i<iEnd; i++) {
 			for(j = nbIteration-1; j > 0; j--) {
 				indice = (i/power(nbFonctions,nbIteration-j)) % nbFonctions;
-				//printf("(rank %d) fractal[%d] iteration n°%d application fonction %d\n", rank, i-iStart, nbIteration-j, indice);
 				applyAffineFonctions(&fractal[i-iStart], w[indice][0], w[indice][1], w[indice][2], w[indice][3], w[indice][4], w[indice][5]);
 				
 			}
@@ -191,38 +168,25 @@ void createFractal(int rank, int nbProc, char* file, int nbIteration){
 		}
 		
 	
-		MPI_Reduce(&yMin,&reduce_yMin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
-		MPI_Reduce(&xMin,&reduce_xMin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
-		MPI_Reduce(&yMax,&reduce_yMax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-		MPI_Reduce(&xMax,&reduce_xMax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-		printf("(rank %d) xMin: %f, xMax: %f, yMin: %f, yMax: %f\n", rank, xMin, xMax, yMin, yMax);
-		if(rank == 0) {
-			printf("(rank %d) (after reduce) xMin: %f, xMax: %f, yMin: %f, yMax: %f\n", rank, reduce_xMin, reduce_xMax, reduce_yMin, reduce_yMax);
-			printf("(rank %d) (after reduce+scale) xMin: %f, xMax: %f, yMin: %f, yMax: %f\n", rank, reduce_xMin * scale_factor, reduce_xMax * scale_factor, reduce_yMin * scale_factor, reduce_yMax * scale_factor);
-			
-			size_x = ((int)(reduce_xMax * scale_factor - reduce_xMin * scale_factor)/100+1)*100;
-			size_y = ((int)(reduce_yMax * scale_factor - reduce_yMin * scale_factor)/100+1)*100;
-			printf("(rank %d) size_x: %f, size_y: %f\n", rank, size_x, size_y);
-			xCenter = size_x/2;
-			yCenter = size_y/2;
-			printf("(rank %d) center_x: %f, center_y: %f\n", rank, xCenter, yCenter);
-			double diff_x = size_x - (reduce_xMax * scale_factor - reduce_xMin * scale_factor);
-			double diff_y = size_y - (reduce_yMax * scale_factor - reduce_yMin * scale_factor);
-			offset_x = 0;
-			if (reduce_xMin< 0) {
-				offset_x = - (reduce_xMin * scale_factor);
-			}
-			offset_x += (size_x - (reduce_xMax * scale_factor - reduce_xMin * scale_factor))/2;
-			offset_y = size_y;
-			if (reduce_yMin * scale_factor < 0) {
-				offset_y += (reduce_yMin * scale_factor);
-			}
-			offset_y -= (size_y - (reduce_yMax * scale_factor - reduce_yMin * scale_factor))/2;
-			printf("(rank %d) diff_x: %f, diff_y: %f\n", rank, diff_x, diff_y);	
-			printf("(rank %d) offset_x: %f, offset_y: %f\n", rank, offset_x, offset_y);
+	MPI_Reduce(&yMin,&reduce_yMin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+	MPI_Reduce(&xMin,&reduce_xMin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+	MPI_Reduce(&yMax,&reduce_yMax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+	MPI_Reduce(&xMax,&reduce_xMax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+	if(rank == 0) {
+		size_x = ((int)(reduce_xMax * scale_factor - reduce_xMin * scale_factor)/100+1)*100;
+		size_y = ((int)(reduce_yMax * scale_factor - reduce_yMin * scale_factor)/100+1)*100;
+
+		offset_x = 0;
+		if (reduce_xMin< 0) {
+			offset_x = - (reduce_xMin * scale_factor);
 		}
-	//}
-	if(rank == 0) { 
+		offset_x += (size_x - (reduce_xMax * scale_factor - reduce_xMin * scale_factor))/2;
+		offset_y = size_y;
+		if (reduce_yMin * scale_factor < 0) {
+			offset_y += (reduce_yMin * scale_factor);
+		}
+		offset_y -= (size_y - (reduce_yMax * scale_factor - reduce_yMin * scale_factor))/2;
+
 
 		// dessin
 		surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, size_x, size_y);
@@ -232,21 +196,17 @@ void createFractal(int rank, int nbProc, char* file, int nbIteration){
 		cairo_fill(cr);
 		
 		cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-		//if(nbProc == 1){
-			draw_fractal_part(cr, nbObjetACalculer+complementACalculer, fractal);
-		//}else{
-			for(i = 1; i<nbProc; i++) {
-				complementACalculer = 0;
-				if(resteACalculer > i) {
-					complementACalculer = 1;
-				}
-				
-				tag = i;
-				MPI_Recv(fractal, nbObjetACalculer+1, segmentDt, i, tag, MPI_COMM_WORLD, &status);
-				draw_fractal_part(cr, nbObjetACalculer+complementACalculer, fractal);
+		draw_fractal_part(cr, nbObjetACalculer+complementACalculer, fractal);
+		for(i = 1; i<nbProc; i++) {
+			complementACalculer = 0;
+			if(resteACalculer > i) {
+				complementACalculer = 1;
 			}
-		//}
-
+			
+			tag = i;
+			MPI_Recv(fractal, nbObjetACalculer+1, segmentDt, i, tag, MPI_COMM_WORLD, &status);
+			draw_fractal_part(cr, nbObjetACalculer+complementACalculer, fractal);
+		}
 
 		// Temps d'exécution 
 		endTime = MPI_Wtime();
