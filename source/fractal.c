@@ -7,7 +7,8 @@
 #include <gtk/gtk.h>
 #include "../header/geometry.h"
 #include "../header/utils.h"
-#include "../header/interface.h"
+#include "../header/fractal.h"
+
 #define Malloc(type) (type *) malloc(sizeof(type))
 #define MallocTab(type,size) (type *) malloc(sizeof(type)*size)
 #define TAILLE_MAX 100 // Tableau de taille 100
@@ -16,33 +17,19 @@
 #define DEFAULT_SIZE_Y 600
 #define DEFAULT_OFFSET_X 150
 #define DEFAULT_OFFSET_Y 450
-//Variable Globales
-int nbObjectGrphTot;
-double size_x = DEFAULT_SIZE_X;
-double size_y = DEFAULT_SIZE_Y;
-int scale_factor =  DEFAULT_SCALE_FACTOR;
-double offset_x = DEFAULT_OFFSET_X;
-double offset_y = DEFAULT_OFFSET_Y;
 
-void draw_fractal_part(cairo_t *cr, int fractal_part_size, segment *fractal_part);
+static void draw_fractal_part(cairo_t *cr, int fractal_part_size, segment *fractal_part);
+void createFractal(int rank, int nbProc, char* file, int nbIteration){
+	double **w;
+	int nbFonctions = 0;
 
-int main (int argc, char *argv[])
-{
-	int nbIteration;
-	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0;
-	int nbProc, rank, _nbProc, _rank;
+	int nbObjetACalculer = 0, complementACalculer = 0, resteACalculer = 0, nbObjectGrphTot;
+	int _nbProc, _rank;
 	int i,j,k;
    	int tag = 0;
 
-	MPI_Datatype pointDt;
-	MPI_Datatype segmentDt;
-   	MPI_Status status;
-
 	int iStartOffset, iEndOffset, iStart, iEnd, indice;
 	double startTime, endTime, execTime;
-
-	double **w;
-	int nbFonctions=0;
 
 	double yMin = 0.0;
 	double yMax = 0.0;
@@ -55,10 +42,19 @@ int main (int argc, char *argv[])
 	double reduce_xMin;
 	double reduce_xMax;
 
+   	MPI_Status status;
+	MPI_Datatype pointDt;
+	MPI_Datatype segmentDt;
+
 	cairo_surface_t *surface;
 	cairo_t *cr;
 
-	GtkWidget *window;
+	//On gère la taille de l'image
+	size_x = DEFAULT_SIZE_X;
+	size_y = DEFAULT_SIZE_Y;
+	scale_factor =  DEFAULT_SCALE_FACTOR;
+	offset_x = DEFAULT_OFFSET_X;
+	offset_y = DEFAULT_OFFSET_Y;
 
 	// Pour charger les paramètres à partir d'un fichier en argument
 	FILE* param = NULL;
@@ -66,33 +62,18 @@ int main (int argc, char *argv[])
 	int i_ligne=0; 
  	char flottant[6]={0};
 	int nbColonnes=6;
-	int nbFct=0;
-	char* file = argv[1];
-
-	if(argc != 3) {
-		printf("miss argument\n");
-		MPI_Abort(MPI_COMM_WORLD, 1);
-		exit(1);		
-	}
-	
-	/* Préparation des variables de la fractales */
-	nbIteration = atoi(argv[2]);
-	/* Initialisation de MPI */
-	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &nbProc);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
 	/*
 	* Chargement des paramètres à partir du fichier
 	*/
-	//if(rank == 0) {
+	if(rank == 0) {
 		param = fopen(file, "r+");
 		if (param != NULL){
 			//On récupère le nombre de fonctions en comptant le nombre de lignes
 			while (fgets(ligne, TAILLE_MAX, param) != NULL){
-				nbFct++;
+				nbFonctions++;
 			}
-			nbFonctions = nbFct;
+
 			w=MallocTab(double*,nbFonctions);
 			fseek(param, 0, SEEK_SET);
 			//On forme w en parsant le fichier
@@ -119,7 +100,24 @@ int main (int argc, char *argv[])
 			MPI_Abort(MPI_COMM_WORLD, 1);
 			exit(1);
 		}
-	//} 
+	} 
+
+	MPI_Bcast(&nbFonctions, 1, MPI_INT,0, MPI_COMM_WORLD);
+	MPI_Bcast(&nbColonnes, 1, MPI_INT,0, MPI_COMM_WORLD);
+	if(rank != 0)
+			w=MallocTab(double*,nbFonctions);
+	for(i=0;i<nbFonctions; i++){
+		if(rank!=0)
+			w[i]=MallocTab(double,nbColonnes);
+		MPI_Bcast(w[i], nbColonnes, MPI_DOUBLE,0, MPI_COMM_WORLD);		
+	}
+
+
+	for(i=0 ; i<nbFonctions ; i++){
+		for(j=0 ; j<nbColonnes ; j++){
+			printf("rank %d fonction w : %f\n", rank,  w[i][j]);
+		}
+	}
 
 	nbObjectGrphTot = power(nbFonctions, nbIteration);
 
@@ -263,25 +261,14 @@ int main (int argc, char *argv[])
 		cairo_destroy (cr);
 		cairo_surface_write_to_png (surface, "fractal.png");
 		cairo_surface_destroy (surface);
-
-		// Création de la fenêtre graphique
-		gtk_init(&argc, &argv);
-
-		window = create_window("fractal.png");
-
-		gtk_widget_show_all(window);
-  		gtk_main();
-
 	}else{
 		tag = rank;
 		MPI_Send(fractal, nbObjetACalculer+1, segmentDt, 0, tag, MPI_COMM_WORLD);
 		
 	}
-   	MPI_Finalize();
-	return 0;
 }
 
-void draw_fractal_part(cairo_t *cr, int fractal_part_size, segment *fractal_part) {
+static void draw_fractal_part(cairo_t *cr, int fractal_part_size, segment *fractal_part) {
 	int i;
 	for(i = 0 ; i < fractal_part_size ; i++) {
 		cairo_move_to (cr, fractal_part[i].a.x * scale_factor + offset_x, fractal_part[i].a.y * -scale_factor + offset_y);

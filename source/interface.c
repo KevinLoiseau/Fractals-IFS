@@ -1,6 +1,49 @@
 #include <gtk/gtk.h>
+#include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "../header/geometry.h"
+#include "../header/fractal.h"
 
-void on_open_image (GtkButton* button, gpointer user_data){
+//static void on_open_image (GtkButton* button, gpointer user_data);
+static GtkWidget* create_window (char* img);
+
+int main (int argc, char *argv[])
+{
+	int nbProc, rank;
+
+	GtkWidget *window;
+
+	if(argc != 3) {
+		printf("miss argument\n");
+		MPI_Abort(MPI_COMM_WORLD, 1);
+		exit(1);		
+	}
+
+	/* Initialisation de MPI */
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &nbProc);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	createFractal(rank, nbProc, argv[1], atoi(argv[2]));
+
+
+	// Création de la fenêtre graphique
+	gtk_init(&argc, &argv);
+
+	if(rank ==0){
+		//window = create_window("fractal.png");
+		window = create_window("fractal.png");
+
+		gtk_widget_show_all(window);
+		gtk_main();
+	}
+
+   	MPI_Finalize();
+	return 0;
+}
+/*
+static void on_open_image (GtkButton* button, gpointer user_data){
 	GtkWidget *image = GTK_WIDGET (user_data);
 	GtkWidget *toplevel = gtk_widget_get_toplevel (image);
 	GtkFileFilter *filter = gtk_file_filter_new ();
@@ -23,8 +66,8 @@ void on_open_image (GtkButton* button, gpointer user_data){
 	}
 	gtk_widget_destroy (dialog);
 }
-
-GtkWidget* create_window (char* img){
+*/
+static GtkWidget* create_window (char* img){
 	GtkWidget *window;
 	//GtkWidget *button;
 	GtkWidget *image;
