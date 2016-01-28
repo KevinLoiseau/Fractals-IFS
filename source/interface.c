@@ -28,10 +28,11 @@ int main (int argc, char *argv[])
 	createFractal(rank, nbProc, argv[1], atoi(argv[2]));
 
 
-	// Création de la fenêtre graphique
-	gtk_init(&argc, &argv);
 
+	// Création de la fenêtre graphique pour le root (rank 0)
 	if(rank ==0){
+		
+		gtk_init(&argc, &argv);
 		window = create_window("fractal.png");
 
 		gtk_widget_show_all(window);
