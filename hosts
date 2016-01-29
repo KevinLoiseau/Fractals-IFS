@@ -1,0 +1,5 @@
+localhost slots=1
+ompi@192.168.10.250 slots=6
+ompi@192.168.10.234 slots=4
+ompi@192.168.10.252 slots=2
+ompi@192.168.10.233 slots=1
